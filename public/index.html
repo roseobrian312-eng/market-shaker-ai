@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Market Shaker AI</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header>
+  <div class="brand">Market Shaker <span>AI</span></div>
+  <div class="header-right">
+    <span id="synthetic" class="badge warn" hidden>SYNTHETIC DEV FEED</span>
+    <span id="demo-badge" class="badge">SCANNER ONLY · NO TRADING</span>
+    <span id="conn" class="badge off">connecting…</span>
+  </div>
+</header>
+<main>
+  <section class="card chart-card">
+    <div class="card-head">
+      <select id="symbol"></select>
+      <div class="price"><span id="price">—</span><small id="digit"></small></div>
+    </div>
+    <canvas id="chart" aria-label="Live tick price chart"></canvas>
+    <div class="feed-info"><span id="feed-message" role="status">Connecting to market feed…</span><span id="last-seen">No ticks received yet</span></div>
+  </section>
+  <aside>
+    <section class="card">
+      <h3>Last-digit distribution</h3>
+      <div id="digits" class="digits"></div>
+      <p class="muted" id="chi">Collecting ticks…</p>
+    </section>
+    <section class="card">
+      <h3>Market observations</h3>
+      <ul id="signals" class="signals"><li class="muted">Waiting for data…</li></ul>
+      <p class="muted small">This is a working market-data viewer, not an AI trading engine. It cannot place trades. Statistical observations are not entry signals or profit predictions.</p>
+    </section>
+  </aside>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
