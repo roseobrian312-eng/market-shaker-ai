@@ -1,60 +1,52 @@
-# Market Shaker AI — Phase 2 Demo Lab (Render Free)
+# Upgrade your existing Market Shaker AI website to Phase 5
 
-This ZIP **updates your existing** `market-shaker-ai` GitHub repository, preserving the functioning V100 live feed. It is not a production-ready 24/7 trading service.
+**You already have the GitHub repository and Render website. Do not create another one.**
 
-## 1. Upload this update to GitHub
+## A. Update GitHub
 
-1. Download the Phase 2 ZIP and extract it.
-2. Open your existing GitHub repository `market-shaker-ai` → **Add file → Upload files**.
-3. Drag **all the files and directories inside the extracted folder** (`public`, `src`, `test`, `server.js`, `package.json`, etc.) into GitHub; overwrite matching files. Do not upload the ZIP itself, and do not create an extra folder above `server.js`.
-4. Commit changes on the `main` branch.
-5. Render should redeploy automatically. If not: Render → your service → Manual Deploy → Deploy latest commit.
-6. Keep **Build command** `npm install && npm test`, **Start command** `npm start`, **instance Free**.
+1. Download `Market-Shaker-AI-Phase5-Live-ChatGPT.zip` and use Windows **Extract All**.
+2. Open the extracted folder. You should see `public`, `src`, `test`, `server.js` and `package.json` directly inside it.
+3. Go to your existing GitHub repository `roseobrian312-eng/market-shaker-ai`, branch `main`.
+4. Choose **Add file → Upload files**. Select the **contents** inside your extracted project using **Ctrl+A**, not the enclosing Phase 5 folder. Upload them at the repository root. The new `server.js`, `public/`, `src/`, `test/` and `package.json` must replace the older versions. If GitHub won't overwrite files, do not delete your working app: request assistance updating the existing files.
+5. Commit changes. Render should redeploy automatically. Otherwise use **Manual Deploy → Deploy latest commit**.
 
-## 2. Configure protected DEMO trading (not necessary for market scanner)
+## B. Add the separate OpenAI API key
 
-In Render: service → **Environment** → add these **secret environment variables**, then Save, rebuild/redeploy:
+1. Open https://platform.openai.com/api-keys and create a **secret API key** for your OpenAI API project (separate usage billing may be required; ChatGPT Plus does not cover API calls).
+2. Open https://dashboard.render.com → **market-shaker-ai → Environment**.
+3. Leave your existing `DASHBOARD_PASSWORD`, `DERIV_APP_ID`, and `DERIV_PAT` unchanged.
+4. Add one new environment variable: **Key:** `OPENAI_API_KEY` · **Value:** your newly created secret key.
+5. Optional `OPENAI_MODEL` = `gpt-4.1-mini` (default; can leave unset).
+6. Click **Save, deploy**. Wait until Render shows **Live**.
 
-| Key | Value | Guidance |
-|---|---|---|
-| `DASHBOARD_PASSWORD` | Your own 12+ character secret passphrase | Needed to unlock protected trading endpoints. Avoid simple passwords. |
-| `DERIV_APP_ID` | Your registered **PAT application ID** | Get this in your Deriv developer app dashboard. The old shared `1089` public scanner app ID is not your PAT app ID. |
-| `DERIV_PAT` | Personal access token with **trade** scope | Generate privately in Deriv; use demo-only or tightly scoped credentials where available. Never paste into GitHub or this chat. |
-| `DERIV_DEMO_ACCOUNT_ID` | Optional, a genuine demo Options account ID e.g. `DOT...` | Recommended if you have multiple accounts. The server checks the account list and refuses real accounts. |
+**Keep the API key secret. Never paste it in ChatGPT, GitHub, screenshots or browser code.**
 
-Public market data requires no credentials. The app will not accept real-account connections or execute any real-money trade. Keep the GitHub repository Private to protect source code, although Render's hosted URL is still publicly accessible. All *trading actions* require the dashboard passphrase.
+## C. Test the real AI chat
 
-## 3. Using the dashboard
+1. Open your existing website: https://market-shaker-ai.onrender.com
+2. Unlock the demo terminal using the dashboard password you already set.
+3. Click **Scan all markets** and allow some markets to collect ticks.
+4. Scroll to **Talk to Market Shaker AI**.
+5. Verify status says **AI API ready**, then press **Scan markets**.
+6. You should receive a ChatGPT-style written answer that mentions the captured snapshot time and market data. If you see an API billing/quota error, check your OpenAI API project balance and model access. If you see `AI API not configured`, check the Render environment variable and redeploy.
 
-1. Visit your Render URL. The scanner should connect to Deriv as before.
-2. In **Demo trading terminal**, enter your `DASHBOARD_PASSWORD` and choose **Unlock demo terminal**.
-3. Click **Connect demo account**. If this fails, inspect the displayed error and Render logs; verify PAT, app ID, and account ID.
-4. Verify the demo ID and balance in the dashboard.
-5. Start with a $1 stake, one open contract, and $10 session loss cap. Choose `Over 1` or `Under 8`. Click **Place demo trade**, confirm, and wait for a settled result.
-6. Only after you verify the order in your Deriv demo account, consider the repeat-order control and **experimental demo auto** (explicit confirmation required).
+## D. Test optional ChatGPT-assisted DEMO auto mode
 
-## IMPORTANT limitations
+1. Click **Connect demo account** (must show an account clearly marked DEMO).
+2. Set safe demo risk settings and save them; for initial testing use $1 stake, $1 max stake, max open 1, $10 loss cap, 15s cooldown, 5 session trades.
+3. In the AI decision mode selector, choose **ChatGPT-assisted demo (API usage)**.
+4. Choose **1 demo trade**, press **Start demo auto**, confirm DEMO.
+5. The server will score live markets and quote up to five candidates, send the summary to the language model, and let it select a verified option or WAIT. It might not place any trade. Check the dashboard/Deriv demo account before increasing frequency.
+6. Press **STOP auto** when done. Check any uncertain order on Deriv rather than retrying.
 
-- **We have tested the quote/buy/settlement workflow with a mock Deriv server, not with your real credentials.** Live demo execution still needs to be verified on your account.
-- This is a **rules-based digit-frequency prototype**, not a trained AI model. Historical digit counts are NOT proven predictive; actual profit after contract payouts is not established.
-- **No real trades:** the backend rejects any URL that is not Deriv's demo authenticated WebSocket endpoint, and filters accounts to demo only.
-- **Session-only** caps/trade history. Render Free has ephemeral storage; restarts may reset limits, trade history, and account state. The bot disables auto mode on reboot or disconnect, but it is NOT safe for unattended 24/7 trading.
-- On any unknown buy outcome, it blocks additional orders; reconcile against the official Deriv account before restarting. Restarts clear that memory, so always inspect Deriv if there has been any interruption.
-- Some accounts or instruments may reject certain digit contracts or the selected duration. The dashboard will show the Deriv rejection; it must not silently substitute trades.
-- Repeated purchases are sequential and limited to three requests per click. This is not a parallel bulk-trade execution engine.
+You can continue using the older ML-only Evidence-gated and Exploratory auto modes without an OpenAI API key.
 
-## Code layout
+## Troubleshooting
 
-- `src/deriv.js` — public market data WebSocket, from your working scanner.
-- `src/trading.js` — isolated, demo-only authenticated execution engine, trade lifecycle and risk checks.
-- `src/decision.js` — explicitly experimental, transparent digit-frequency rule scoring.
-- `src/access.js` — protected dashboard cookie login (no browser-side API token).
-- `server.js` — REST routes and SSE tick stream.
-- `public/trade.js` — trading terminal controls; `public/app.js` — chart and last-digit scanner.
-- `test/` — unit, mock trade, scanner and route tests.
-
-Official API documentation:
-https://developers.deriv.com/docs/options/websocket/
-https://developers.deriv.com/docs/trading/proposal/
-https://developers.deriv.com/docs/trading/buy/
-https://developers.deriv.com/docs/trading/proposal-open-contract/
+- **Website unchanged after upgrade:** New files are likely inside a new `Phase5` folder on GitHub instead of at the root; or Render hasn't redeployed.
+- **AI API not configured:** Add `OPENAI_API_KEY` on Render and deploy again.
+- **AI API key rejected / quota:** OpenAI API uses separate billing/quotas; verify API key and account.
+- **AI says WAIT:** Normal; weak or overpriced digit contracts do not imply a positive expected return.
+- **Not every market is listed or ready:** Deriv contract support varies; scanner rotates live feeds to avoid overwhelming free hosting.
+- **Trading refuses to start:** Check demo account connected, scanner active, risk settings and available daily/session trades.
+- **Render sleeps:** Free hosting isn't suitable for unattended trading or persistent model memory.

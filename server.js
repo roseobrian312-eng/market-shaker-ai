@@ -6,6 +6,9 @@ const { DerivClient } = require('./src/deriv');
 const { SyntheticFeed } = require('./src/synthetic');
 const { lastDigit, summarize } = require('./src/stats');
 const { evaluate } = require('./src/decision');
+const { MarketScanner } = require('./src/market-scanner');
+const { AdaptiveEngine } = require('./src/ml-engine');
+const { AIAssistant, getContext } = require('./src/ai-assistant');
 const { DemoTrader } = require('./src/trading');
 const { createAccess } = require('./src/access');
 
@@ -19,18 +22,22 @@ try {
 
 const PORT = Number(process.env.PORT || 3000);
 const SYNTHETIC = process.env.SYNTHETIC === '1' || process.argv.includes('--synthetic');
-const SYMBOLS = [
-  ['R_10','Volatility 10 Index'], ['R_25','Volatility 25 Index'], ['R_50','Volatility 50 Index'],
-  ['R_75','Volatility 75 Index'], ['R_100','Volatility 100 Index'],
-  ['1HZ10V','Volatility 10 (1s) Index'], ['1HZ100V','Volatility 100 (1s) Index'],
-];
 const feed = SYNTHETIC ? new SyntheticFeed() : new DerivClient({ appId: process.env.DERIV_APP_ID });
 const demo = new DemoTrader({ token: SYNTHETIC ? '' : process.env.DERIV_PAT,
   appId: SYNTHETIC ? '' : process.env.DERIV_APP_ID, accountId: process.env.DERIV_DEMO_ACCOUNT_ID || '' });
 const access = createAccess(process.env.DASHBOARD_PASSWORD);
+const scanner = new MarketScanner({feed});
+const ai = new AdaptiveEngine();
+const assistant = new AIAssistant({apiKey:process.env.OPENAI_API_KEY || '',model:process.env.OPENAI_MODEL || 'gpt-4.1-mini'});
+demo.setSettlementHandler(rec => ai.recordSettlement(rec));
+demo.setMarketValidator(id => scanner.hasSymbol(id));
 const history = new Map();
 const clients = new Set();
 const MAX_TICKS = 1000;
+const scanTimer = setInterval(() => {
+  if (!SYNTHETIC && demo.auto) demo.scanAndTrade(scanner, ai, assistant).catch(e => console.error('[Market Shaker auto]', e.message));
+}, 2500);
+scanTimer.unref?.();
 let lastError = null;
 
 function broadcast(event, data) {
@@ -41,14 +48,19 @@ function broadcast(event, data) {
   }
 }
 feed.on('error-msg', msg => { lastError = msg; broadcast('error', { message: msg }); });
-feed.on('status', status => broadcast('status', { status, synthetic: SYNTHETIC }));
+feed.on('status', status => {
+  broadcast('status', { status, synthetic: SYNTHETIC });
+  if (status === 'connected' && !SYNTHETIC) scanner.discover(true).catch(error => console.error('[Market Shaker discovery]',error.message));
+});
 feed.on('tick', t => {
   const tick = { ...t, digit: lastDigit(t.quote, t.pip) };
   const arr = history.get(t.symbol) || [];
   arr.push(tick); if (arr.length > MAX_TICKS) arr.shift();
   history.set(t.symbol, arr);
+  scanner.onTick(tick);
+  ai.onTick(tick);
   broadcast('tick', { tick, stats: summarize(arr) });
-  if (!SYNTHETIC) demo.onTick(tick, arr);
+  // Auto scanning selects from *all* live watched symbols, not the currently displayed chart.
 });
 demo.on('change', () => {});
 
@@ -65,11 +77,11 @@ function secureOrigin(req) {
     return u.host === req.headers.host && (u.protocol === 'https:' || (u.protocol === 'http:' && ['127.0.0.1', 'localhost'].includes(u.hostname)));
   } catch { return false; }
 }
-async function readJson(req) {
+async function readJson(req, maxLength=8192) {
   let body = '';
   for await (const part of req) {
     body += part.toString();
-    if (body.length > 8192) throw new Error('Request too large');
+    if (body.length > maxLength) throw new Error('Request too large');
   }
   if (!body) return {};
   const result = JSON.parse(body);
@@ -86,13 +98,17 @@ async function handler(req, res) {
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
   if (req.method === 'GET' && url.pathname === '/api/health') {
     return respond(res, 200, { status: feed.status, synthetic: SYNTHETIC, connectedClients: clients.size,
-      trackedSymbols: [...history.keys()], lastError, demoAvailable: demo.configured() && access.enabled });
+      trackedSymbols: [...history.keys()].slice(0,20), trackedCount: history.size,
+      marketCount: scanner.getSymbols().length, scanning: scanner.active, lastError, demoAvailable: demo.configured() && access.enabled });
   }
   if (req.method === 'GET' && url.pathname === '/api/symbols')
-    return respond(res, 200, SYMBOLS.map(([id, name]) => ({ id, name })));
+    return respond(res, 200, scanner.getSymbols());
+  if (req.method === 'GET' && url.pathname === '/api/scanner/status')
+    return respond(res, 200, scanner.state());
   if (req.method === 'GET' && url.pathname === '/api/stream') {
     const symbol = url.searchParams.get('symbol') || 'R_100';
-    if (!SYMBOLS.some(([id]) => id === symbol)) return fail(res, 400, 'Unsupported symbol');
+    if (!scanner.hasSymbol(symbol)) return fail(res, 400, 'Unsupported symbol');
+    scanner.setChart(symbol);
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
     const client = { res, symbol };
     clients.add(client);
@@ -118,15 +134,34 @@ async function handler(req, res) {
       demo.stopAuto(); access.logout(req, res); return respond(res, 200, { ok: true });
     }
     if (req.method === 'GET' && url.pathname === '/api/trading/status') return respond(res, 200, demo.state());
+    if (req.method === 'GET' && url.pathname === '/api/ai/status') return respond(res, 200, ai.state(scanner));
+    if (req.method === 'GET' && url.pathname === '/api/assistant/status') return respond(res, 200, assistant.state());
+    if (req.method === 'GET' && url.pathname === '/api/assistant/context') return respond(res, 200, getContext(scanner,ai,demo));
+    if (req.method === 'GET' && url.pathname === '/api/ai/backup') {
+      res.setHeader('Content-Disposition', 'attachment; filename=market-shaker-ai-model-backup.json');
+      return respond(res, 200, ai.snapshot());
+    }
     if (req.method !== 'POST') return fail(res, 405, 'Unsupported method');
+    if (url.pathname === '/api/assistant/chat') {
+      const body = await readJson(req, 10000);
+      return respond(res, 200, await assistant.chat(body.message,body.history,getContext(scanner,ai,demo)));
+    }
+    if (url.pathname === '/api/ai/restore') {
+      if (demo.auto || demo.inFlight || demo.open.size) return fail(res, 409, 'Stop auto trading and wait for contracts to settle first');
+      const snapshot = await readJson(req, 2500000);
+      ai.restore(snapshot);
+      return respond(res, 200, { ok:true, ai: ai.state(scanner) });
+    }
+    if (url.pathname === '/api/scanner/start') { if (!SYNTHETIC) await scanner.start(); else { scanner.active = true; scanner._rotate(); } return respond(res, 200, scanner.state()); }
+    if (url.pathname === '/api/scanner/stop') { demo.stopAuto('Scanner stopped'); scanner.stop(); return respond(res, 200, scanner.state()); }
     if (SYNTHETIC) return fail(res, 403, 'Synthetic testing mode cannot place orders');
     const body = await readJson(req);
     if (url.pathname === '/api/trading/connect') { await demo.connect(); return respond(res, 200, demo.state()); }
     if (url.pathname === '/api/trading/settings') return respond(res, 200, { settings: demo.configure(body) });
     if (url.pathname === '/api/trading/manual') return respond(res, 200, { order: await demo.place({ type: body.type, symbol: body.symbol, stake: demo.settings.stake }) });
     if (url.pathname === '/api/trading/bulk') return respond(res, 200, await demo.bulk({ type: body.type, symbol: body.symbol, count: body.count }));
-    if (url.pathname === '/api/trading/auto/start') { demo.startAuto(body.symbol, body.confirm); return respond(res, 200, demo.state()); }
-    if (url.pathname === '/api/trading/auto/stop') { demo.stopAuto(); return respond(res, 200, demo.state()); }
+    if (url.pathname === '/api/trading/auto/start') { if (body.mode === 'assistant' && !assistant.configured()) return fail(res, 503, 'Add OPENAI_API_KEY in Render to enable ChatGPT-assisted demo trading'); demo.startAuto({count: body.count, confirm: body.confirm, scanner, mode: body.mode}); return respond(res, 200, demo.state()); }
+    if (url.pathname === '/api/trading/auto/stop') { demo.stopAuto('Stopped by user'); return respond(res, 200, demo.state()); }
     return fail(res, 404, 'Unknown action');
   }
   if (req.method !== 'GET' && req.method !== 'HEAD') return fail(res, 405, 'Unsupported method');

@@ -1,10 +1,12 @@
 {
   "name": "market-shaker-ai",
-  "version": "0.1.0",
-  "description": "Market Shaker AI - Deriv tick scanner and demo-account trading platform",
+  "version": "0.5.0",
+  "description": "Market Shaker AI live OpenAI chat, adaptive multi-market research and risk-controlled Deriv DEMO terminal",
   "private": true,
   "type": "commonjs",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.js",
     "dev:synthetic": "node server.js --synthetic",

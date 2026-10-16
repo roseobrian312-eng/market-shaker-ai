@@ -1,7 +1,7 @@
 'use strict';
 // DEMO ONLY: independent authenticated channel. Tokens never travel to browser.
 const { EventEmitter } = require('node:events');
-const { TYPES, evaluate, demoCandidate } = require('./decision');
+const { TYPES } = require('./decision');
 const REST = 'https://api.derivws.com';
 const WS_DEMO = 'wss://api.derivws.com/trading/v1/options/ws/demo';
 const ACCOUNT_PATH = '/trading/v1/options/accounts';
@@ -52,12 +52,19 @@ class DemoTrader extends EventEmitter {
     this.lastTradeAt = 0;
     this.auto = false;
     this.autoBusy = false;
-    this.autoSymbol = 'R_100';
+    this.autoSymbol = 'AUTO';
+    this.autoTarget = 0;
+    this.autoPlaced = 0;
+    this.autoChoice = null;
+    this.autoMode = 'quality';
+    this.autoReason = 'Scanner not started';
+    this.marketValidator = id => ['R_10','R_25','R_50','R_75','R_100','1HZ10V','1HZ100V'].includes(id);
     this.settings = { stake: 1, maxStake: 5, lossLimit: 10, maxOpen: 1, cooldown: 15, maxTrades: 20, duration: 1 };
     this.lastAutoCheck = 0;
     this.connectedOnce = false;
     this.connecting = null;
     this.balanceTimer = null;
+    this.settlementHandler = null;
   }
   configured() { return Boolean(this.token && this.appId); }
   _status(status, error = null) {
@@ -205,6 +212,9 @@ class DemoTrader extends EventEmitter {
       rec.closedAt = Date.now();
       this.pnlToday += rec.profit;
       this.open.delete(id);
+      if (this.settlementHandler) {
+        try { this.settlementHandler({...rec}); } catch (e) { console.error('[AI settlement]', e.message); }
+      }
       this._resetDay();
       if (this.pnlToday <= -this.settings.lossLimit) this.auto = false;
     }
@@ -216,7 +226,7 @@ class DemoTrader extends EventEmitter {
     if (this.status !== 'connected') throw new Error('Demo account not connected');
     if (this.uncertain) throw new Error('Uncertain trade status after network interruption. Check Deriv before continuing.');
     if (!TYPES[type]) throw new Error('Unsupported strategy');
-    if (!['R_10','R_25','R_50','R_75','R_100','1HZ10V','1HZ100V'].includes(symbol)) throw new Error('Unsupported symbol');
+    if (!this.marketValidator(symbol)) throw new Error('Unsupported or unavailable Deriv symbol');
     if (!Number.isFinite(stake) || stake < 0.35 || stake > this.settings.maxStake) throw new Error(`Stake must be between $0.35 and $${this.settings.maxStake}`);
     if (this.inFlight) throw new Error('Wait for the current order');
     if (this.open.size >= this.settings.maxOpen) throw new Error('Maximum open trades reached');
@@ -224,7 +234,9 @@ class DemoTrader extends EventEmitter {
     if (Date.now() - this.lastTradeAt < this.settings.cooldown * 1000) throw new Error('Trade cooldown active');
     if (this.pnlToday - this.exposure() - stake < -this.settings.lossLimit) throw new Error('Session loss cap would be exceeded');
   }
-  async place({ type, symbol, stake, source = 'manual' }) {
+  setMarketValidator(fn) { this.marketValidator = fn; }
+  setSettlementHandler(fn) { this.settlementHandler = fn; }
+  async place({ type, symbol, stake, source = 'manual', quote = null, aiMeta = null }) {
     const amount = Number(stake);
     this._validate(type, symbol, amount);
     this.inFlight = true;
@@ -233,9 +245,10 @@ class DemoTrader extends EventEmitter {
     let buyConfirmed = false;
     try {
       const choice = TYPES[type];
-      const offer = await this.request({ proposal: 1, amount, basis: 'stake', contract_type: type, currency: this.currency,
-        duration: this.settings.duration, duration_unit: 't', underlying_symbol: symbol, barrier: choice.barrier });
-      const proposal = offer.proposal;
+      const proposal = quote && quote.symbol === symbol && quote.type === type && quote.stake === amount && Date.now()-quote.at < 2500
+        ? quote.proposal
+        : (await this.request({ proposal: 1, amount, basis: 'stake', contract_type: type, currency: this.currency,
+          duration: this.settings.duration, duration_unit: 't', underlying_symbol: symbol, barrier: choice.barrier })).proposal;
       const ask = number(proposal?.ask_price);
       if (!proposal?.id || !Number.isFinite(ask) || ask <= 0 || ask > amount) {
         throw new Error('Deriv quote was invalid or exceeded selected stake. No trade placed.');
@@ -248,7 +261,7 @@ class DemoTrader extends EventEmitter {
       const id = String(bought.buy.contract_id);
       const buyPrice = number(bought.buy.buy_price, ask);
       const rec = { id, type, label: choice.label, symbol, stake: amount, buyPrice,
-        status: 'open', profit: null, source, startedAt: Date.now() };
+        status: 'open', profit: null, source, aiMeta, startedAt: Date.now() };
       this.open.set(id, rec);
       this.history.unshift(rec);
       if (this.history.length > 100) this.history.length = 100;
@@ -275,9 +288,9 @@ class DemoTrader extends EventEmitter {
       stake: Number(input.stake), maxStake: Number(input.maxStake), lossLimit: Number(input.lossLimit),
       maxOpen: Number(input.maxOpen), cooldown: Number(input.cooldown), maxTrades: Number(input.maxTrades), duration: 1,
     };
-    if (!Number.isFinite(next.stake) || next.stake < 0.35 || next.stake > 5) throw new Error('Stake must be $0.35–$5');
-    if (!Number.isFinite(next.maxStake) || next.maxStake < next.stake || next.maxStake > 5) throw new Error('Max stake must be between stake and $5');
-    if (!Number.isFinite(next.lossLimit) || next.lossLimit < next.maxStake || next.lossLimit > 100) throw new Error('Loss limit must be between max stake and $100');
+    if (!Number.isFinite(next.stake) || next.stake < 0.35 || next.stake > 50) throw new Error('Stake must be $0.35–$50 on DEMO');
+    if (!Number.isFinite(next.maxStake) || next.maxStake < next.stake || next.maxStake > 50) throw new Error('Max stake must be between stake and $50 on DEMO');
+    if (!Number.isFinite(next.lossLimit) || next.lossLimit < next.maxStake || next.lossLimit > 500) throw new Error('Loss limit must be between max stake and $500 on DEMO');
     if (!Number.isInteger(next.maxOpen) || next.maxOpen < 1 || next.maxOpen > 3) throw new Error('Max open must be 1–3');
     if (!Number.isInteger(next.cooldown) || next.cooldown < 5 || next.cooldown > 3600) throw new Error('Cooldown must be 5–3600 seconds');
     if (!Number.isInteger(next.maxTrades) || next.maxTrades < 1 || next.maxTrades > 100) throw new Error('Max trades must be 1–100');
@@ -285,27 +298,138 @@ class DemoTrader extends EventEmitter {
     this.emit('change');
     return this.settings;
   }
-  startAuto(symbol, confirm) {
+  async previewQuote(candidate) {
+    const amount = this.settings.stake;
+    const contract = TYPES[candidate.type];
+    if (!contract) throw new Error('Unsupported strategy');
+    const response = await this.request({proposal:1, amount, basis:'stake',
+      contract_type:candidate.type, currency:this.currency, duration:1,
+      duration_unit:'t', underlying_symbol:candidate.symbol, barrier: contract.barrier});
+    const proposal = response.proposal;
+    const ask = number(proposal?.ask_price);
+    const payout = number(proposal?.payout);
+    if (!proposal?.id || !Number.isFinite(ask) || ask <= 0 || ask > amount ||
+        !Number.isFinite(payout) || payout <= 0) throw new Error('Invalid Deriv price proposal');
+    const adjusted = candidate.adjustedPct / 100;
+    const breakEven = ask / payout;
+    return {symbol:candidate.symbol,type:candidate.type,stake:amount,at:Date.now(),proposal,
+      ask,payout,breakEven,estimatedNet: adjusted*payout-ask,
+      fairNet: (candidate.baselinePct/100)*payout-ask};
+  }
+  startAuto({ count, confirm, scanner, mode = 'quality' }) {
     if (confirm !== 'DEMO ONLY') throw new Error('Confirmation must read DEMO ONLY');
+    if (!['quality','research','assistant'].includes(mode)) throw new Error('Select a valid AI research mode');
     if (!this.connectedOnce || this.status !== 'connected') throw new Error('Connect the Deriv demo account first');
     if (this.uncertain) throw new Error('Reconcile uncertain orders first');
-    this.autoSymbol = symbol;
+    if (!scanner?.active) throw new Error('Click Scan all markets first');
+    if (!Number.isInteger(count) || count < 1 || count > 20) throw new Error('Select 1–20 demo trades');
+    this._resetDay();
+    if (this.tradesToday + count > this.settings.maxTrades) throw new Error('Requested count exceeds remaining session trade limit');
+    if (this.pnlToday - this.exposure() - this.settings.stake < -this.settings.lossLimit) throw new Error('Session loss cap reached');
+    if (this.auto) throw new Error('Auto trade is already running');
     this.auto = true;
+    this.autoMode = mode;
+    this.autoSymbol = 'ALL';
+    this.autoTarget = count;
+    this.autoPlaced = 0;
+    this.autoChoice = null;
+    this.autoReason = 'Waiting for enough live ticks across markets…';
     this.lastAutoCheck = 0;
     this.emit('change');
   }
-  stopAuto() { this.auto = false; this.emit('change'); }
-  onTick(tick, ticks) {
-    if (!this.auto || this.autoBusy || this.status !== 'connected' || tick.symbol !== this.autoSymbol) return;
-    if (Date.now() - this.lastAutoCheck < 2500) return;
+  stopAuto(reason = 'Stopped by user') { this.auto = false; this.autoReason = reason; this.emit('change'); }
+  async scanAndTrade(scanner, ai, advisor = null) {
+    if (!this.auto || this.autoBusy || this.status !== 'connected' || !scanner?.active) return;
+    if (Date.now() - this.lastAutoCheck < 3500) return;
     this.lastAutoCheck = Date.now();
-    if (this.inFlight || this.open.size >= this.settings.maxOpen || Date.now() - this.lastTradeAt < this.settings.cooldown * 1000) return;
-    const candidate = demoCandidate(ticks.map(x => x.digit));
-    if (!candidate) return;
+    if (this.autoPlaced >= this.autoTarget) { this.stopAuto('Target number of trades submitted'); return; }
+    if (this.inFlight || this.open.size >= this.settings.maxOpen || Date.now() - this.lastTradeAt < this.settings.cooldown*1000) return;
+    if (this.tradesToday >= this.settings.maxTrades || this.pnlToday - this.exposure() - this.settings.stake < -this.settings.lossLimit) {
+      this.stopAuto('Session risk or trade limit reached'); return;
+    }
+    if (this.autoMode === 'assistant') {
+      if (!advisor?.configured()) { this.stopAuto('AI-assisted demo requires OPENAI_API_KEY'); return; }
+      if (advisor.selectionCount >= 20) { this.stopAuto('AI assistant reached its session selection budget'); return; }
+      if (!advisor.canSelect()) {
+        this.autoReason = `ChatGPT decision cooldown: ${advisor.secondsToNextSelection() || 0}s. Watching live ticks.`;
+        this.emit('change'); return;
+      }
+    }
+    const candidates = ai?.rankings(scanner,30,{qualityOnly:this.autoMode === 'quality'}) || [];
+    if (!candidates.length) { this.autoReason = this.autoMode === 'quality'
+      ? `No forward-evaluated AI candidate passes the evidence gate. ${ai?.state(scanner).readyMarkets || 0} markets ready; will keep checking.`
+      : `AI is training on live outcomes. ${ai?.state(scanner).readyMarkets || 0} models are warm; waiting for at least 150 ticks per market.`;
+      this.emit('change'); return; }
     this.autoBusy = true;
-    this.place({ type: candidate.type, symbol: tick.symbol, stake: this.settings.stake, source: 'rules-demo' })
-      .catch(e => { this.error = `Auto stopped: ${e.message}`; this.auto = false; this.emit('change'); })
-      .finally(() => { this.autoBusy = false; });
+    try {
+      let best = null;
+      const quoted = [];
+      let checked = 0;
+      const tried = new Set();
+      // Only a small number of quotes per decision. Rejections are cached to avoid repeated invalid requests.
+      for (const c of candidates) {
+        if (checked >= 5 || !this.auto) break;
+        if (!scanner.hasSymbol(c.symbol) || !scanner.allowsContract(c.symbol,c.type)) continue;
+        if (this.autoMode === 'assistant' && c.ageSeconds > 30) continue;
+        if (tried.has(`${c.symbol}|${c.type}`)) continue;
+        tried.add(`${c.symbol}|${c.type}`);
+        checked++;
+        try {
+          const quote = await this.previewQuote(c);
+          // 'Quality' mode is conservative research only. It requires forward
+          // performance improvement and estimated positive net payout margin.
+          if (this.autoMode === 'quality' && (!c.qualityGate || quote.estimatedNet <= this.settings.stake*0.02)) continue;
+          // Research mode selects among real ML forecasts but may have NEGATIVE EV.
+          const choice = {candidate:c,quote,score:quote.estimatedNet + (c.modelSkill || 0)*0.015};
+          if (this.autoMode === 'assistant') quoted.push(choice);
+          if (!best || choice.score > best.score) best = choice;
+        } catch (error) {
+          // A quote failure might be transient; don't disable whole market unless contract explicitly unsupported.
+          if (/not available|unsupported|not offered|invalid contract|does not exist|contract type/i.test(error.message))
+            scanner.blockContract(c.symbol,c.type,error.message);
+          else this.autoReason = `Quote check: ${error.message}`;
+        }
+      }
+      if (this.autoMode === 'assistant' && quoted.length && this.auto) {
+        // Give the language model a small, real quote-backed choice set. It cannot invent orders.
+        const { getContext } = require('./ai-assistant');
+        const selection = await advisor.selectDemo(quoted, getContext(scanner, ai, this));
+        if (!this.auto) return;
+        if (selection.index === null) {
+          this.autoReason = `ChatGPT chose WAIT: ${selection.reason}`;
+          this.emit('change'); return;
+        }
+        best = quoted[selection.index];
+        this.autoReason = `ChatGPT demo choice: ${selection.reason}`;
+      }
+      if (!best || !this.auto) {
+        if (!best) this.autoReason = this.autoMode === 'quality'
+          ? 'No AI candidate passed the recent forward-test and quoted-value checks. Waiting; this is normal for random ticks.'
+          : 'No supported live demo quotes for warmed AI candidates. Retrying.';
+        this.emit('change'); return;
+      }
+      const {candidate:c,quote} = best;
+      this.autoChoice = {symbol:c.symbol, name:c.name, strategy:c.label, predictedPct:c.predictedPct,
+        adjustedPct:c.adjustedPct, baselinePct:c.baselinePct, sample:c.sample,
+        forwardForecasts:c.forecasts, modelSkill:c.modelSkill, mode:this.autoMode,
+        payout:quote.payout, ask:quote.ask, estimatedNet:+quote.estimatedNet.toFixed(3), fairNet:+quote.fairNet.toFixed(3)};
+      if (this.autoMode !== 'assistant') this.autoReason = `ML selected ${c.name} / ${c.label} from ${checked} quotes (${this.autoMode} mode). Model estimates are experimental, not proven odds.`;
+      else this.autoReason = `ChatGPT selected ${c.name} / ${c.label} from ${quoted.length} live quotes. Experimental DEMO only.`;
+      this.emit('change');
+      await this.place({type:c.type,symbol:c.symbol,stake:this.settings.stake,
+        source:this.autoMode === 'assistant' ? 'chatgpt-assisted-demo' : 'adaptive-ai-demo',quote,aiMeta:{mode:this.autoMode, adjustedPct:c.adjustedPct,
+          predictedPct:c.predictedPct, forwardForecasts:c.forecasts, modelSkill:c.modelSkill}});
+      this.autoPlaced++;
+      if (this.autoPlaced >= this.autoTarget) this.stopAuto(`Completed target: ${this.autoPlaced}/${this.autoTarget} demo orders`);
+      else this.emit('change');
+    } catch(error) {
+      // Never retry an ambiguous purchase; stop and ask to check Deriv account.
+      this.stopAuto(`Auto stopped: ${error.message}`);
+      this.error = this.autoReason;
+    } finally {
+      this.autoBusy = false;
+      this.emit('change');
+    }
   }
   async bulk({ type, symbol, count }) {
     if (!Number.isInteger(count) || count < 1 || count > 3) throw new Error('Bulk count must be 1–3');
@@ -322,10 +446,11 @@ class DemoTrader extends EventEmitter {
     this._resetDay();
     return { configured: this.configured(), status: this.status, error: this.error, accountId: this.accountId,
       currency: this.currency, balance: this.balance, uncertain: this.uncertain, auto: this.auto,
-      autoSymbol: this.autoSymbol, settings: this.settings, tradesToday: this.tradesToday,
+      autoSymbol: this.autoSymbol, autoMode:this.autoMode, autoTarget: this.autoTarget, autoPlaced: this.autoPlaced,
+      autoChoice: this.autoChoice, autoReason: this.autoReason, settings: this.settings, tradesToday: this.tradesToday,
       sessionPnl: +this.pnlToday.toFixed(2), exposure: +this.exposure().toFixed(2), openCount: this.open.size,
       history: this.history.slice(0, 25),
-      warning: 'DEMO ONLY. Rules-based experimentation, not proven AI. Loss cap is per server session, not durable across Render restarts.' };
+      warning: 'DEMO ONLY. ChatGPT and online ML cannot predict random tick outcomes reliably; losing trades are expected. AI mode uses billable requests. Session loss limits are not durable across Render restarts.' };
   }
 }
 module.exports = { DemoTrader, demoAccount, flattenAccounts };

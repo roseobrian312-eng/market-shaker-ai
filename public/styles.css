@@ -76,3 +76,69 @@ th{text-align:left;color:var(--muted)}td,th{padding:9px 7px;border-bottom:1px so
 footer{border-top:1px solid var(--line);padding:16px 22px;color:var(--muted);font-size:12px;text-align:center}
 @media(max-width:980px){.trade-grid{grid-template-columns:1fr}.stats-strip{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.workspace{padding:6px 12px}.stats-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.metric{padding:9px}.metric strong{font-size:14px}.mini-grid{grid-template-columns:1fr}.inline-form .field{width:100%;min-width:0}button{width:100%}.actions button{flex:1;min-width:135px}.banner{padding:12px}.section-title h2{font-size:17px}}
+/* Phase 3: multi-market auto scanner, keeping the original chart and manual terminal. */
+.scanner-control{background:linear-gradient(120deg,#14203a,#131a2b 70%);border-color:#2c416a;margin-bottom:16px}
+.scanner-title{display:flex;align-items:start;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:14px}
+.scanner-title h2{font-size:22px;margin:4px 0 7px;letter-spacing:-.025em}
+.scanner-title p{max-width:680px;margin:0}
+.eyebrow{letter-spacing:.09em;color:#82a9ff;font-size:11px;font-weight:750}
+.scanner-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0 16px}
+.scanner-metrics div{border:1px solid #30415f;background:#0f192d;padding:12px;border-radius:10px}
+.scanner-metrics span{font-size:11px;text-transform:uppercase;letter-spacing:.035em;color:var(--muted);display:block}
+.scanner-metrics strong{font-size:19px;display:block;margin-top:5px;font-variant-numeric:tabular-nums}
+.scanner-setup{display:grid;grid-template-columns:minmax(150px,200px) minmax(150px,200px) minmax(280px,1fr);gap:12px;align-items:end;margin-bottom:12px}
+.scanner-cta{display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+.scanner-cta button{flex:1 1 125px}
+.scanner-results{margin-top:18px}
+.scanner-results h3{margin-bottom:4px}
+.scanner-results p{margin:0 0 10px}
+.scanner-table{max-height:255px;overflow-y:auto}
+.scanner-table td:first-child{font-weight:600}
+.scanner-table td{white-space:nowrap}
+.scanner-table .pos{color:#8fe7c4}
+#auto-state{padding:7px 3px}
+@media(max-width:900px){.scanner-setup{grid-template-columns:1fr 1fr}.scanner-cta{grid-column:1/-1}}
+@media(max-width:600px){.scanner-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-setup{display:block}.scanner-setup .field{margin-bottom:10px}.scanner-cta{display:grid;grid-template-columns:1fr 1fr}.scanner-cta button:first-child{grid-column:1/-1}.scanner-title h2{font-size:18px}}
+
+/* Phase 4: true online learning diagnostics and manual persistence */
+.ai-learning{background:#0e1a30;border:1px solid #29466e;border-radius:12px;padding:17px;margin:0 0 18px}
+.ai-learning-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.ai-learning-head h3{margin:4px 0 0;color:var(--text);font-size:16px;text-transform:none;letter-spacing:0}
+.ai-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.ai-metrics div{border:1px solid #30415f;background:#101b31;padding:10px;border-radius:9px;min-width:0}
+.ai-metrics span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase}
+.ai-metrics strong{display:block;font-size:17px;margin-top:4px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.ai-metrics .ai-model-name{font-size:13px}
+.ai-actions{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:12px}
+.ai-learning table td{white-space:nowrap}
+.scanner-setup{grid-template-columns:minmax(130px,170px) minmax(130px,170px) minmax(215px,1.2fr) minmax(280px,1.3fr)}
+.ai-mode-field select{min-width:0}
+@media(max-width:1150px){.scanner-setup{grid-template-columns:repeat(2,minmax(0,1fr))}.scanner-cta{grid-column:1/-1}}
+@media(max-width:650px){.ai-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.ai-learning{padding:12px}.scanner-setup{display:block}.scanner-setup>.field{margin-bottom:12px}.ai-actions button{width:100%}}
+
+/* Phase 5: interactive ChatGPT-style assistant, preserving the original trading design. */
+.assistant-panel{background:linear-gradient(140deg,#13243c,#101d32 65%,#172944);border-color:#36547d;padding:20px;margin-bottom:16px}
+.assistant-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.assistant-title{display:flex;align-items:flex-start;gap:14px;min-width:0;flex:1}
+.assistant-logo{display:grid;place-items:center;width:44px;height:44px;border-radius:13px;background:#28466a;color:#78decc;font-size:27px;flex-shrink:0;border:1px solid #457998}
+.assistant-title h2{margin:2px 0 5px;font-size:21px;letter-spacing:-.03em}
+.assistant-title p{max-width:680px;margin:0 0 12px}
+.assistant-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#9fb5d6;font-size:12px;padding:8px 0 14px}
+.assistant-prompts{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:14px}
+.assistant-quick{background:#192f4e;border:1px solid #375778;border-radius:999px;padding:8px 12px;font-size:12px;min-height:34px}
+.assistant-chat{height:290px;overflow-y:auto;overscroll-behavior:contain;padding:16px;background:#091527;border:1px solid #2b4266;border-radius:12px;display:flex;flex-direction:column;gap:11px}
+.chat-line{display:flex;max-width:100%}
+.chat-line.user{justify-content:flex-end}
+.chat-line.bot{justify-content:flex-start}
+.bubble{max-width:min(88%,800px);padding:11px 14px;border-radius:12px;background:#1b304e;border:1px solid #324f75;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55}
+.chat-line.user .bubble{background:#245db0;border-color:#3672cb}
+.bubble strong{display:block;color:#9ff0e1;margin-bottom:4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+.bubble p{margin:0}
+.bubble small{display:block;margin-top:7px;color:#abc0de}
+.assistant-form{display:flex;gap:10px;margin-top:12px}
+.assistant-form input{flex:1;min-width:0;background:#0b1a30;color:var(--text);border:1px solid #36547d;border-radius:9px;font-size:14px;padding:12px}
+.assistant-form input:focus{outline:2px solid #4b83eb}
+.assistant-form button{min-width:116px}
+.assistant-disclaimer{margin:10px 0 0}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;border:0!important}
+@media(max-width:600px){.assistant-panel{padding:12px}.assistant-title h2{font-size:18px}.assistant-chat{height:340px;padding:10px}.bubble{max-width:94%;font-size:13px}.assistant-form{display:block}.assistant-form input{width:100%}.assistant-form button{margin-top:8px;width:100%}.assistant-prompts{display:grid;grid-template-columns:1fr 1fr}.assistant-quick{width:100%}}

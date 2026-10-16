@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Market Shaker AI — Demo Lab</title>
+<title>Market Shaker AI — Live ChatGPT Assistant + Adaptive Demo Scanner</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header>
-  <div class="brand">Market Shaker <span>AI</span><small> · Demo Lab</small></div>
+  <div class="brand">Market Shaker <span>AI</span><small> · ChatGPT-powered Research Lab</small></div>
   <div class="header-right">
     <span class="badge demo">DEMO ONLY · NO REAL ORDERS</span>
     <span id="synthetic" class="badge warn" hidden>SYNTHETIC DEV FEED</span>
     <span id="conn" class="badge off">connecting…</span>
   </div>
 </header>
-<div class="banner"><strong>Live scanner + experimental digit strategies.</strong> Market observations do not establish a profitable edge. Trading controls require a protected Deriv demo account. Render Free may sleep or restart.</div>
+<div class="banner"><strong>Live market data + ChatGPT-style AI + adaptive ML.</strong> Ask questions about current Deriv tick snapshots. Optional ChatGPT-assisted DEMO order selection uses live quotes and server-enforced risk checks. API access costs extra; no model has a proven profitable digit-prediction edge. Render Free is not reliable for unattended execution.</div>
 <main>
   <section class="card chart-card">
     <div class="card-head">
@@ -57,6 +57,72 @@
       <div class="metric"><span>Open contracts</span><strong id="open-count">0</strong></div>
       <div class="metric"><span>Session trades</span><strong id="session-trades">0</strong></div>
     </div>
+    <section class="card assistant-panel" id="assistant-panel" aria-label="Market Shaker live AI assistant">
+      <div class="assistant-heading">
+        <div class="assistant-title"><span class="assistant-logo" aria-hidden="true">✦</span><div><span class="eyebrow">CHATGPT-STYLE · LIVE MARKET CONTEXT</span><h2>Talk to Market Shaker AI</h2><p class="muted small">Ask about the latest streamed ticks, compare markets and strategies, or ask why the scanner is waiting. Each message includes a fresh server-generated snapshot.</p></div></div>
+        <span class="badge warn" id="assistant-status">Checking AI API…</span>
+      </div>
+      <div class="assistant-meta"><span id="assistant-feed">Live context loading…</span><span id="assistant-budget">API usage: —</span></div>
+      <div class="assistant-prompts" aria-label="Quick questions">
+        <button type="button" class="assistant-quick" data-ai-prompt="Scan the latest available markets and tell me which digit strategy currently ranks highest, its sample size, baseline and evidence limitations.">Scan markets</button>
+        <button type="button" class="assistant-quick" data-ai-prompt="Compare Over 1, Under 8, Matches 5 and Differs 5 using the latest live snapshot. What do the data actually support?">Compare strategies</button>
+        <button type="button" class="assistant-quick" data-ai-prompt="Based on live market snapshots and my recent demo results, explain whether there is any validated reason to enter a demo trade now or whether I should wait.">Trade or wait?</button>
+      </div>
+      <div id="assistant-chat" class="assistant-chat" role="log" aria-live="polite" aria-relevant="additions text"><div class="chat-line bot"><div class="bubble"><strong>Market Shaker AI</strong><p>Ask me to scan markets, compare Deriv digit strategies, or explain what the live data shows. I only use snapshots actually received by this server; I cannot promise winning trades or execute chat commands.</p></div></div></div>
+      <form class="assistant-form" id="assistant-form">
+        <label class="sr-only" for="assistant-question">Ask the live AI assistant</label>
+        <input id="assistant-question" type="text" maxlength="1000" autocomplete="off" placeholder="Ask AI to scan markets and explain the best current demo candidate…" required>
+        <button id="assistant-send" class="primary" type="submit">Ask AI ↗</button>
+      </form>
+      <p class="muted small assistant-disclaimer">AI answers use recent aggregated tick data, not every tick sent to an LLM. The OpenAI API is billed separately from ChatGPT and may be unavailable until you configure it. Chat responses cannot place orders.</p>
+    </section>
+    <section class="card scanner-control" id="scanner-control">
+      <div class="scanner-title"><div><span class="eyebrow">MARKET SHAKER AI • LIVE ADAPTIVE MODEL</span><h2>Let AI compare the markets</h2>
+        <p class="muted small">Scan available Deriv markets and learn from actual next-tick outcomes. You choose the demo trade quantity and stake; the model compares symbols and strategies independently of your selected chart. Different markets become ready at different times.</p></div>
+        <span id="scan-badge" class="badge warn">Scanner OFF</span>
+      </div>
+      <div class="scanner-metrics">
+        <div><span>Available markets</span><strong id="markets-total">—</strong></div>
+        <div><span>Feeds in this round</span><strong id="markets-watching">0</strong></div>
+        <div><span>Markets with data</span><strong id="markets-ready">0</strong></div>
+        <div><span>Demo orders completed</span><strong id="auto-progress">0 / 0</strong></div>
+      </div>
+      <section class="ai-learning" aria-label="Adaptive machine learning status">
+        <div class="ai-learning-head"><div><span class="eyebrow">LIVE MODEL · TICK LEARNING</span><h3>Adaptive AI training &amp; forward results</h3></div><span id="ai-badge" class="badge warn">Learning</span></div>
+        <div class="ai-metrics">
+          <div><span>Ticks learned</span><strong id="ai-ticks">0</strong></div>
+          <div><span>Model-ready markets</span><strong id="ai-ready">0</strong></div>
+          <div><span>Demo settlements learned</span><strong id="ai-settled">0</strong></div>
+          <div><span>Model type</span><strong class="ai-model-name">Online ML</strong></div>
+        </div>
+        <p id="ai-note" class="muted small">Awaiting live ticks. Each forecast is scored against the NEXT observed tick before it is used to train the model.</p>
+        <div class="ai-actions"><button id="ai-backup" type="button">Download model backup</button><button id="ai-restore" type="button">Restore model backup</button><input type="file" accept=".json,application/json" id="ai-file" hidden></div>
+        <p class="warning small">Render Free loses in-memory learning when the service restarts or sleeps. Download a backup and restore it after reconnecting. Backups include model weights and aggregated demo outcomes, not your API token.</p>
+        <div class="table-wrap"><table><thead><tr><th>Market</th><th>AI strategy</th><th>AI estimate</th><th>Fair baseline</th><th>Forward score</th><th>Demo feedback</th></tr></thead><tbody id="ai-leaders"><tr><td colspan="6" class="muted">Waiting for trained models…</td></tr></tbody></table></div>
+      </section>
+      <div class="scanner-setup">
+        <label class="field">Number of demo trades
+          <select id="auto-count"><option value="1">1 trade</option><option value="2">2 trades</option><option value="3" selected>3 trades</option><option value="5">5 trades</option><option value="10">10 trades</option><option value="15">15 trades</option><option value="20">20 trades</option></select>
+        </label>
+        <label class="field">Stake per trade (USD)
+          <input id="auto-stake" type="number" min="0.35" max="50" step="0.05" value="1" />
+        </label>
+        <label class="field ai-mode-field">AI demo decision mode
+          <select id="ai-mode">
+            <option value="quality" selected>Evidence-gated (may not trade)</option>
+            <option value="research">Exploratory demo (ML forecasts)</option><option value="assistant">ChatGPT-assisted demo (API usage)</option>
+          </select>
+        </label>
+        <div class="scanner-cta"><button id="scan-all" class="primary" type="button">Scan all markets</button><button id="start-auto" class="primary" type="button" disabled>Start demo auto</button><button id="stop-auto" class="danger" type="button" disabled>STOP auto</button></div>
+      </div>
+      <div id="scanner-message" class="status-line" role="status">Scanner not started. First press Scan all markets.</div>
+      <div id="auto-state" class="muted small">Auto trading is OFF.</div>
+      <div class="scanner-results">
+        <div><h3>Raw tick frequency diagnostics</h3><p class="muted small">This table is historical only. Automatic demo strategy selection now uses the trained ML forecasts in the panel above, plus live contract quotes and risk limits.</p></div>
+        <div class="table-wrap scanner-table"><table><thead><tr><th>Market</th><th>Strategy</th><th>Samples</th><th>Observed</th><th>Fair rate</th><th>Deviation</th></tr></thead><tbody id="scan-leaders"><tr><td colspan="6" class="muted">Start scanning to rank live markets.</td></tr></tbody></table></div>
+      </div>
+      <p class="warning small">ML and ChatGPT have no demonstrated trading edge. AI-assisted mode makes occasional paid API calls and may choose WAIT. Exploratory mode can knowingly place negative-expected-value DEMO orders; evidence-gated mode may wait forever. Automation only submits to your verified Deriv DEMO account. Your selected quantity is a target, not a promise that all trades will execute; cooldown, loss caps, missing quotes, disconnections and unsupported contracts may stop or delay orders. Risk limits reset if Render restarts.</p>
+    </section>
     <div class="trade-grid">
       <section class="card">
         <h3>Manual demo execution</h3>
@@ -71,23 +137,15 @@
       <section class="card">
         <h3>Risk safeguards · server session</h3>
         <div class="mini-grid">
-          <label class="field">Stake, USD<input id="stake" type="number" min="0.35" max="5" step="0.05" value="1"></label>
-          <label class="field">Max stake, USD<input id="max-stake" type="number" min="0.35" max="5" step="0.05" value="5"></label>
-          <label class="field">Session loss cap, USD<input id="loss-limit" type="number" min="5" max="100" step="1" value="10"></label>
+          <label class="field">Stake, USD<input id="stake" type="number" min="0.35" max="50" step="0.05" value="1"></label>
+          <label class="field">Max stake, USD<input id="max-stake" type="number" min="0.35" max="50" step="0.05" value="5"></label>
+          <label class="field">Session loss cap, USD<input id="loss-limit" type="number" min="5" max="500" step="1" value="10"></label>
           <label class="field">Max open contracts<input id="max-open" type="number" min="1" max="3" step="1" value="1"></label>
           <label class="field">Cooldown, seconds<input id="cooldown" type="number" min="5" max="3600" step="1" value="15"></label>
           <label class="field">Max trades/session<input id="max-trades" type="number" min="1" max="100" step="1" value="20"></label>
         </div>
         <button id="save-risk" type="button">Save risk settings</button>
         <p class="warning small">Limits and history reset after a server restart. They are NOT account-wide daily protection. Do not use free hosting for unattended trading.</p>
-      </section>
-      <section class="card">
-        <h3>Experimental strategy scanner</h3>
-        <p class="muted small">Ranks past 200 digits versus uniform probabilities. This is rules-based research, not a trained or validated AI model.</p>
-        <div id="rankings" class="ranking"><p class="muted">Collecting 200 ticks…</p></div>
-        <p class="muted small">Demo auto mode only activates if a measured deviation passes its conservative prototype threshold. Most of the time it may take no trades.</p>
-        <div class="actions"><button id="start-auto" class="primary" type="button" disabled>Start demo auto</button><button id="stop-auto" class="danger" type="button" disabled>Stop auto</button></div>
-        <p id="auto-state" class="muted small">Auto mode is OFF. No bot runs after server restart.</p>
       </section>
       <section class="card">
         <h3>Orders &amp; results</h3>
@@ -99,8 +157,9 @@
     </div>
   </div>
 </section>
-<footer>Market Shaker AI · Phase 2 experimental demo trading · No real-account purchases, no guarantee of profitability.</footer>
+<footer>Market Shaker AI · Phase 5 ChatGPT-style live research + demo-only execution · No real-account purchases, no guarantee of profitability.</footer>
 <script src="app.js"></script>
 <script src="trade.js"></script>
+<script src="assistant.js"></script>
 </body>
 </html>

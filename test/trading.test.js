@@ -65,7 +65,7 @@ test('mock Deriv REST OTP, demo WebSocket quote->buy->settle lifecycle', async (
 test('limits reject orders with stake above max, non-demo symbols and insufficient remaining risk', async () => {
   const engine = new DemoTrader({token:'FAKE',appId:'TEST_ID',fetchImpl:mockFetch,WebSocketImpl:MockSocket});
   await engine.connect();
-  assert.throws(()=>engine.configure({stake:10,maxStake:10,lossLimit:10,maxOpen:1,cooldown:15,maxTrades:20}),/Stake/);
+  assert.throws(()=>engine.configure({stake:60,maxStake:60,lossLimit:100,maxOpen:1,cooldown:15,maxTrades:20}),/Stake/);
   assert.throws(()=>engine._validate('DIGITOVER','R_100',50),/Stake/);
   assert.throws(()=>engine._validate('DIGITOVER','R_UNKNOWN',1),/symbol/);
   engine.pnlToday = -9.5;

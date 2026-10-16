@@ -2,13 +2,29 @@ const $ = (id) => document.getElementById(id);
 let ticks = [], es = null;
 let currentSymbol = 'R_100';
 
+let symbolsSignature = '';
+async function syncSymbols() {
+  const response = await fetch('/api/symbols', {cache:'no-store'});
+  if (!response.ok) throw new Error(`Server error ${response.status}`);
+  const syms = await response.json();
+  const signature = syms.map(s=>s.id).join('|');
+  if (!syms.length || signature === symbolsSignature) return;
+  const select = $('symbol');
+  const selected = select.value || currentSymbol;
+  select.replaceChildren();
+  for (const item of syms) {
+    const option = document.createElement('option');
+    option.value = item.id;
+    option.textContent = item.name;
+    select.append(option);
+  }
+  symbolsSignature = signature;
+  select.value = syms.some(s=>s.id===selected) ? selected : syms.some(s=>s.id==='R_100') ? 'R_100' : syms[0].id;
+  if (select.value !== currentSymbol) connect(select.value);
+}
 async function init() {
   try {
-    const response = await fetch('/api/symbols');
-    if (!response.ok) throw new Error(`Server error ${response.status}`);
-    const syms = await response.json();
-    $('symbol').innerHTML = syms.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-    $('symbol').value = 'R_100';
+    await syncSymbols();
     $('symbol').onchange = () => connect($('symbol').value);
     connect($('symbol').value);
   } catch (error) {
@@ -16,6 +32,7 @@ async function init() {
     setStatus('unavailable', false);
   }
 }
+setInterval(() => syncSymbols().catch(() => {}), 15000);
 
 function connect(symbol) {
   if (es) es.close();
