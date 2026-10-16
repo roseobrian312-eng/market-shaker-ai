@@ -24,7 +24,7 @@ test('synthetic server loads pages, validates markets, streams actual SSE tick e
     const health = await (await fetch(base + '/api/health')).json();
     assert.equal(health.synthetic, true);
     const page = await (await fetch(base + '/')).text();
-    assert.match(page, /SCANNER ONLY/);
+    assert.match(page, /Market Shaker AI/);
     const symResponse = await fetch(base + '/api/symbols');
     assert.equal(symResponse.status, 200);
     assert.ok((await symResponse.json()).some(x => x.id === 'R_100'));

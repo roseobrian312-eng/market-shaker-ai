@@ -3,22 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Market Shaker AI</title>
+<title>Market Shaker AI — Demo Lab</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header>
-  <div class="brand">Market Shaker <span>AI</span></div>
+  <div class="brand">Market Shaker <span>AI</span><small> · Demo Lab</small></div>
   <div class="header-right">
+    <span class="badge demo">DEMO ONLY · NO REAL ORDERS</span>
     <span id="synthetic" class="badge warn" hidden>SYNTHETIC DEV FEED</span>
-    <span id="demo-badge" class="badge">SCANNER ONLY · NO TRADING</span>
     <span id="conn" class="badge off">connecting…</span>
   </div>
 </header>
+<div class="banner"><strong>Live scanner + experimental digit strategies.</strong> Market observations do not establish a profitable edge. Trading controls require a protected Deriv demo account. Render Free may sleep or restart.</div>
 <main>
   <section class="card chart-card">
     <div class="card-head">
-      <select id="symbol"></select>
+      <select id="symbol" aria-label="Select market"></select>
       <div class="price"><span id="price">—</span><small id="digit"></small></div>
     </div>
     <canvas id="chart" aria-label="Live tick price chart"></canvas>
@@ -33,10 +34,73 @@
     <section class="card">
       <h3>Market observations</h3>
       <ul id="signals" class="signals"><li class="muted">Waiting for data…</li></ul>
-      <p class="muted small">This is a working market-data viewer, not an AI trading engine. It cannot place trades. Statistical observations are not entry signals or profit predictions.</p>
+      <p class="muted small">Historical distribution does not predict the next tick. No win rate or profit is guaranteed.</p>
     </section>
   </aside>
 </main>
+<section class="workspace">
+  <div class="section-title"><h2>Demo trading terminal</h2><span id="demo-status" class="badge off">Locked</span></div>
+  <section class="card" id="unlock-panel">
+    <h3>Trading access</h3>
+    <p class="muted">Your public scanner works without login. Demo trading is locked behind your private dashboard passphrase; API tokens stay in Render's Environment settings.</p>
+    <div class="inline-form">
+      <label class="field" for="password">Dashboard passphrase<input id="password" type="password" autocomplete="current-password" placeholder="Passphrase set in Render" minlength="12"></label>
+      <button id="unlock" class="primary" type="button">Unlock demo terminal</button>
+    </div>
+    <p id="setup-hint" class="muted small"></p>
+  </section>
+  <div id="trade-panel" hidden>
+    <div class="stats-strip">
+      <div class="metric"><span>Account</span><strong id="account-id">Not connected</strong></div>
+      <div class="metric"><span>Demo balance</span><strong id="account-balance">—</strong></div>
+      <div class="metric"><span>Session P/L</span><strong id="session-pnl">$0.00</strong></div>
+      <div class="metric"><span>Open contracts</span><strong id="open-count">0</strong></div>
+      <div class="metric"><span>Session trades</span><strong id="session-trades">0</strong></div>
+    </div>
+    <div class="trade-grid">
+      <section class="card">
+        <h3>Manual demo execution</h3>
+        <p class="muted small">Select one strategy, then send a 1-tick order to your authenticated Deriv demo account. Stake is determined by the risk settings.</p>
+        <div class="mini-grid">
+          <label class="field">Strategy<select id="trade-type"><option value="DIGITOVER">Over 1</option><option value="DIGITUNDER">Under 8</option><option value="DIGITDIFF">Differs 5</option><option value="DIGITMATCH">Matches 5</option></select></label>
+          <label class="field">Repeat orders<select id="bulk-count"><option value="1">1 trade</option><option value="2">2 trades</option><option value="3">3 trades</option></select></label>
+        </div>
+        <div class="actions"><button id="connect-demo" class="primary" type="button">Connect demo account</button><button id="buy" type="button" disabled>Place demo trade</button><button id="bulk" type="button" disabled>Queue repeat trades</button></div>
+        <p class="muted small">Repeat orders are queued sequentially, obey caps and cooldowns, and stop if a limit is reached. They are not a simultaneous multi-account bulk purchase.</p>
+      </section>
+      <section class="card">
+        <h3>Risk safeguards · server session</h3>
+        <div class="mini-grid">
+          <label class="field">Stake, USD<input id="stake" type="number" min="0.35" max="5" step="0.05" value="1"></label>
+          <label class="field">Max stake, USD<input id="max-stake" type="number" min="0.35" max="5" step="0.05" value="5"></label>
+          <label class="field">Session loss cap, USD<input id="loss-limit" type="number" min="5" max="100" step="1" value="10"></label>
+          <label class="field">Max open contracts<input id="max-open" type="number" min="1" max="3" step="1" value="1"></label>
+          <label class="field">Cooldown, seconds<input id="cooldown" type="number" min="5" max="3600" step="1" value="15"></label>
+          <label class="field">Max trades/session<input id="max-trades" type="number" min="1" max="100" step="1" value="20"></label>
+        </div>
+        <button id="save-risk" type="button">Save risk settings</button>
+        <p class="warning small">Limits and history reset after a server restart. They are NOT account-wide daily protection. Do not use free hosting for unattended trading.</p>
+      </section>
+      <section class="card">
+        <h3>Experimental strategy scanner</h3>
+        <p class="muted small">Ranks past 200 digits versus uniform probabilities. This is rules-based research, not a trained or validated AI model.</p>
+        <div id="rankings" class="ranking"><p class="muted">Collecting 200 ticks…</p></div>
+        <p class="muted small">Demo auto mode only activates if a measured deviation passes its conservative prototype threshold. Most of the time it may take no trades.</p>
+        <div class="actions"><button id="start-auto" class="primary" type="button" disabled>Start demo auto</button><button id="stop-auto" class="danger" type="button" disabled>Stop auto</button></div>
+        <p id="auto-state" class="muted small">Auto mode is OFF. No bot runs after server restart.</p>
+      </section>
+      <section class="card">
+        <h3>Orders &amp; results</h3>
+        <div class="actions"><button id="refresh" type="button">Refresh status</button><button id="logout" type="button">Lock controls</button></div>
+        <p id="trading-message" class="status-line" role="status">Unlock controls to begin.</p>
+        <div class="table-wrap"><table><thead><tr><th>Time</th><th>Market</th><th>Contract</th><th>Stake</th><th>Result</th></tr></thead><tbody id="trades"><tr><td colspan="5" class="muted">No demo trades yet.</td></tr></tbody></table></div>
+        <p class="muted small">After an interrupted buy or settlement stream, check positions in Deriv. The terminal blocks further orders when order status is uncertain.</p>
+      </section>
+    </div>
+  </div>
+</section>
+<footer>Market Shaker AI · Phase 2 experimental demo trading · No real-account purchases, no guarantee of profitability.</footer>
 <script src="app.js"></script>
+<script src="trade.js"></script>
 </body>
 </html>
