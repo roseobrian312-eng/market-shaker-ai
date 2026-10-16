@@ -62,3 +62,14 @@ Run `npm test` using Node 22+. **34 automated tests** cover security gates, chat
 - Deriv decides which contracts are available on each symbol.
 - LLM selection is not continuously reasoning over every incoming tick; it is asked to review a fresh summarized snapshot at each decision window, to control latency and API costs.
 - Existing trading risk caps are server-session caps, not guaranteed daily persistent account-level caps.
+
+## Phase 5 readiness fix (October 2026)
+
+The earlier version rotated all 24 monitored feeds every 100 seconds, often before each market accumulated the 150 ticks (30 context + 120 forward labels) needed to become model-ready. It also evicted models after keeping only 72, fewer than the 89 markets shown by Deriv. This patch preserves the existing Phase 5 chatbot and demo trading logic, but:
+
+- Reserves up to 10 continuous synthetic-market feeds and scans other available markets in successive batches of the remaining feed slots. Rotation is 6 minutes by default; markets outside the current batch are not watched simultaneously.
+- Keeps up to 128 model records, so training is retained across rotations for a typical 89-market catalog.
+- Shows diagnostic information for fresh models and progress of the closest-to-ready model.
+- Does **not** reduce the quality gate, guarantee an edge, force trades, change demo account credentials, or automatically place orders.
+
+After updating GitHub and waiting for Render to deploy, click **Scan all markets**, keep the browser open for at least 3–6 minutes, and check **Model-ready markets**. The 0/0 counter means you have not started an auto session: choose the demo quantity/stake and then **Start demo auto**. Select `Evidence-gated` (may choose no trades), `Exploratory` (unvalidated, demo only) or `ChatGPT-assisted` (API billed). Use $1 demo stakes until behavior is checked. Free hosting can sleep/reset state, so download/restore backups as needed.

@@ -14,6 +14,11 @@ const DEFAULT_MAX_LIVE = 24; // memory, network and CPU budget for Render Free
 const MAX_HISTORY = 600;
 const MIN_SAMPLE = 30;
 const MAX_AGE_MS = 90000;
+// Keep high-priority synthetic feeds live long enough to train an online model.
+// Other markets remain discoverable and are scanned in successive batches.
+const CORE_FEEDS = 10;
+const CORE_SYMBOLS = ['R_10','R_25','R_50','R_75','R_100',
+  '1HZ10V','1HZ25V','1HZ50V','1HZ75V','1HZ100V','1HZ150V','1HZ200V'];
 
 function parseActiveSymbols(response) {
   const arr = response?.active_symbols;
@@ -40,7 +45,7 @@ function safeTradeScore(sample, rule) {
 }
 
 class MarketScanner extends EventEmitter {
-  constructor({ feed, maxLive = DEFAULT_MAX_LIVE, rotateMs = 100000 } = {}) {
+  constructor({ feed, maxLive = DEFAULT_MAX_LIVE, rotateMs = 360000 } = {}) {
     super();
     this.feed = feed;
     this.symbols = FALLBACK.map(([id,name]) => ({id,name,market:'Synthetic',active:true}));
@@ -55,6 +60,7 @@ class MarketScanner extends EventEmitter {
     this.round = 0;
     this.nextBatch = 0;
     this.current = new Set();
+    this.core = new Set();
     this.chart = 'R_100';
     this.timer = null;
     this.fetching = null;
@@ -112,6 +118,7 @@ class MarketScanner extends EventEmitter {
     clearInterval(this.timer); this.timer = null;
     for (const id of this.current) if (id !== this.chart) this.feed.unsubscribeTicks?.(id);
     this.current.clear();
+    this.core.clear();
     this.message = 'Scanner stopped. The selected chart may continue updating.';
     this.emit('change');
   }
@@ -119,22 +126,35 @@ class MarketScanner extends EventEmitter {
     if (!this.active) return;
     const all = this.symbols.filter(s => s.active).map(s => s.id);
     if (!all.length) { this.message = 'No open symbols reported by Deriv'; return; }
-    const next = new Set();
+
+    // Maintain a small, stable set of well-known synthetic digit markets instead
+    // of interrupting ALL 24 feeds before the ~150 labelled ticks needed by ML.
+    // This does not claim that any of these markets has a trading edge.
+    const capacity = Math.max(1, Math.min(this.maxLive, all.length));
+    const reserve = capacity > 4 ? Math.min(CORE_FEEDS, capacity - 2) : 0;
+    const activeIds = new Set(all);
+    const core = CORE_SYMBOLS.filter(id => activeIds.has(id)).slice(0, reserve);
+    const coreSet = new Set(core);
+    const rotating = all.filter(id => !coreSet.has(id));
+    const next = new Set(core);
     let inspected = 0;
-    while (next.size < Math.min(this.maxLive, all.length) && inspected < all.length) {
-      const id = all[(this.nextBatch + inspected) % all.length];
+    const rotatingSlots = capacity - next.size;
+    while (inspected < Math.min(rotatingSlots, rotating.length)) {
+      next.add(rotating[(this.nextBatch + inspected) % rotating.length]);
       inspected++;
-      next.add(id);
     }
-    this.nextBatch = (this.nextBatch + inspected) % all.length;
-    for (const old of this.current) if (!next.has(old) && old !== this.chart) this.feed.unsubscribeTicks?.(old);
+    if (rotating.length) this.nextBatch = (this.nextBatch + inspected) % rotating.length;
+    for (const old of this.current) {
+      if (!next.has(old) && old !== this.chart) this.feed.unsubscribeTicks?.(old);
+    }
     for (const id of next) if (!this.current.has(id)) this.feed.subscribeTicks(id);
     this.current = next;
+    this.core = coreSet;
     this.round++;
     this.lastScan = Date.now();
-    this.message = all.length > this.maxLive
-      ? `Rotating scan: ${next.size} live feeds per round across ${all.length} active markets. Round ${this.round}.`
-      : `Scanning ${next.size} active Deriv markets. Digit-compatible contracts checked before ordering.`;
+    this.message = all.length > capacity
+      ? `Stable scan: ${core.length} continuous synthetic feeds, ${inspected} rotating feeds (round ${this.round}). Others rotate every ${Math.round(this.rotateMs/60000)} minutes; all ${all.length} available markets remain discoverable.`
+      : `Scanning ${next.size} active Deriv markets. Contracts are checked before ordering.`;
     this.emit('change');
   }
   onTick(tick) {
@@ -182,6 +202,7 @@ class MarketScanner extends EventEmitter {
     return {
       active: this.active, loading: this.loading, message: this.message,
       discovered: this.symbols.length, watching: this.current.size, round: this.round,
+      continuousFeeds: this.core.size, rotatingFeeds: this.current.size - this.core.size,
       warmed: [...this.history.entries()].filter(([id,x]) => x.length >= MIN_SAMPLE && Date.now()-(this.latest.get(id)||0)<MAX_AGE_MS).length,
       nextRotationSeconds: this.active ? Math.max(0, Math.round((this.lastScan + this.rotateMs - Date.now())/1000)) : null,
       rankings: this.rankings(), minimumTicks: MIN_SAMPLE,

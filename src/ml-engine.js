@@ -7,7 +7,7 @@ const { EventEmitter } = require('node:events');
 const FEATURES = 61;
 const CONTEXT = 30;
 const WARMUP = 120;
-const MAX_MODELS = 72;
+const MAX_MODELS = 128; // Deriv may expose 89+ markets; retain training across scan rotations.
 const MAX_HISTORY = 100;
 const EVAL_WINDOW = 250;
 const LOG_UNIFORM = Math.log(10);
@@ -146,10 +146,15 @@ class AdaptiveEngine extends EventEmitter {
     return (qualityOnly ? found.filter(x=>x.qualityGate) : found).slice(0,Math.min(30,Math.max(1,limit)));
   }
   state(scanner) {
-    const ready=[...this.models.values()].filter(x=>x.samples>=WARMUP && Date.now()-x.lastTick<MAX_AGE_MS);
+    const now = Date.now();
+    const ready=[...this.models.values()].filter(x=>x.samples>=WARMUP && now-x.lastTick<MAX_AGE_MS);
+    const fresh=[...this.models.values()].filter(x=>now-x.lastTick<MAX_AGE_MS);
+    const closest=fresh.slice().sort((a,b)=>b.samples-a.samples)[0];
     const ranked=scanner?this.rankings(scanner,10):[];
     return {kind:'Online multinomial logistic regression (10 digit classes)',version:1,
       samplesNeeded:CONTEXT+WARMUP, totalTicks:this.totalTicks, trainedMarkets:this.models.size,
+      freshMarkets:fresh.length, closestMarket:closest?.symbol || null,
+      closestSamples:closest ? Math.min(CONTEXT+closest.samples,CONTEXT+WARMUP) : 0,
       readyMarkets:ready.length, totalSettlements:this.totalSettlements, lastUpdate:this.lastUpdate,
       importedAt:this.importedAt,
       leaders:ranked.map(r=>({symbol:r.symbol,name:r.name,strategy:r.label,predictedPct:r.predictedPct,

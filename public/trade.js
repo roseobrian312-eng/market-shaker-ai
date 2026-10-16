@@ -201,7 +201,7 @@
       $('ai-badge').className = 'badge ' + (s.readyMarkets > 0 ? 'on' : 'warn');
       $('ai-note').textContent = s.readyMarkets > 0 ?
         `Online training running. ${s.readyMarkets} markets have warmed up; predictions are checked on later ticks. Higher forward score (positive) means better recent log-loss than a 10% uniform forecast, NOT proven profit.` :
-        `Learning tick patterns across ${s.trainedMarkets} markets. About ${s.samplesNeeded} ticks per symbol are needed for initial AI rankings. Different markets warm at different speeds.`;
+        `Learning across ${s.trainedMarkets} saved market models; ${s.freshMarkets || 0} have recent ticks. Closest active model: ${s.closestMarket || 'none yet'}, ${s.closestSamples || 0}/${s.samplesNeeded} ticks toward initial ranking. Continuous synthetic feeds remain active while other markets rotate.`;
       const body=$('ai-leaders');body.replaceChildren();
       if (!s.leaders.length) appendRow(body, ['Collecting labelled tick outcomes…','','','','','']);
       for (const r of s.leaders) appendRow(body, [r.name, r.strategy,
